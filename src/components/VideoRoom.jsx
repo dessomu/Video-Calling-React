@@ -84,13 +84,6 @@ export default function VideoRoom({ roomId }) {
       if (e.candidate)
         socket.emit("ice-candidate", { candidate: e.candidate, roomId });
     };
-    peer.onconnectionstatechange = () => {
-      console.log("🔌 Peer state:", peer.connectionState);
-      if (peer.connectionState === "failed") {
-        console.warn("⚠️ Connection failed — trying restart ICE");
-        peer.restartIce?.();
-      }
-    };
 
     // 3️⃣ connect socket, join room
     socket.on("connect", () => console.log("Connected as:", socket.id));
