@@ -18,6 +18,60 @@ export default function VideoRoom({ roomId }) {
 
     let isUnmounted = false;
 
+    // 🧱 1️⃣ Define reconnection helpers first
+    async function handlePeerDisconnect() {
+      console.warn("⚠️ Peer disconnected! Attempting reconnection...");
+      try {
+        peer.close(); // close old peer
+      } catch (err) {
+        console.warn("Peer already closed");
+        console.log(err);
+      }
+      peerRef.current = null;
+
+      setTimeout(() => reconnectPeer(), 1500); // short delay before re-init
+    }
+
+    async function reconnectPeer() {
+      console.log("🔁 Reconnecting peer...");
+
+      const newPeer = new RTCPeerConnection({
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+      });
+      peerRef.current = newPeer;
+
+      // re-attach ICE and track handlers
+      newPeer.onicecandidate = (e) => {
+        if (e.candidate)
+          socket.emit("ice-candidate", { candidate: e.candidate, roomId });
+      };
+      newPeer.ontrack = (e) => {
+        console.log("📡 Remote stream re-received:", e.streams[0].id);
+        remoteVideoRef.current.srcObject = e.streams[0];
+      };
+
+      const stream = localVideoRef.current?.srcObject;
+      if (stream)
+        stream.getTracks().forEach((t) => newPeer.addTrack(t, stream));
+
+      const offer = await newPeer.createOffer();
+      await newPeer.setLocalDescription(offer);
+      socket.emit("offer", { offer, roomId });
+    }
+
+    // 🧱 2️⃣ Hook into connection-state and socket events
+    peer.onconnectionstatechange = () => {
+      console.log("🔌 Peer state:", peer.connectionState);
+      if (["disconnected", "failed", "closed"].includes(peer.connectionState)) {
+        handlePeerDisconnect();
+      }
+    };
+
+    socket.on("disconnect", () => {
+      console.warn("⚠️ Socket disconnected!");
+      handlePeerDisconnect();
+    });
+
     // 1️⃣ attach ontrack immediately
     peer.ontrack = (event) => {
       const remoteStream = event.streams[0];
@@ -30,8 +84,13 @@ export default function VideoRoom({ roomId }) {
       if (e.candidate)
         socket.emit("ice-candidate", { candidate: e.candidate, roomId });
     };
-    peer.onconnectionstatechange = () =>
+    peer.onconnectionstatechange = () => {
       console.log("🔌 Peer state:", peer.connectionState);
+      if (peer.connectionState === "failed") {
+        console.warn("⚠️ Connection failed — trying restart ICE");
+        peer.restartIce?.();
+      }
+    };
 
     // 3️⃣ connect socket, join room
     socket.on("connect", () => console.log("Connected as:", socket.id));
@@ -85,20 +144,25 @@ export default function VideoRoom({ roomId }) {
 
     // 6️⃣ Get local stream and add tracks as soon as available
     (async () => {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      });
-      console.log("🎥 Local stream ID:", stream.id);
-      if (isUnmounted) return;
-      localVideoRef.current.srcObject = stream;
-      if (peer.signalingState !== "closed") {
-        stream.getTracks().forEach((t) => peer.addTrack(t, stream));
-      } else {
-        console.warn("Peer was closed before adding tracks, skipping");
-      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
+        console.log("🎥 Local stream ID:", stream.id);
+        if (isUnmounted) return;
+        localVideoRef.current.srcObject = stream;
+        if (peer.signalingState !== "closed") {
+          stream.getTracks().forEach((t) => peer.addTrack(t, stream));
+        } else {
+          console.warn("Peer was closed before adding tracks, skipping");
+        }
 
-      localStreamPromiseResolve(); // resolve once tracks are added
+        localStreamPromiseResolve(); // resolve once tracks are added
+      } catch (err) {
+        console.error("🚫 getUserMedia failed:", err);
+        localStreamPromiseResolve(); // resolve anyway so signaling isn’t stuck
+      }
     })();
 
     // cleanup
