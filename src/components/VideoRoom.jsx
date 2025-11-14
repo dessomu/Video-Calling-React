@@ -20,8 +20,9 @@ export default function VideoRoom({ roomId }) {
 
     // 1️⃣ attach ontrack immediately
     peer.ontrack = (event) => {
-      console.log("📡 Remote track received!", event.streams);
-      remoteVideoRef.current.srcObject = event.streams[0];
+      const remoteStream = event.streams[0];
+      console.log("📡 Remote stream ID:", remoteStream.id);
+      remoteVideoRef.current.srcObject = remoteStream;
     };
 
     // 2️⃣ Attach onicecandidate + connection state
@@ -88,7 +89,7 @@ export default function VideoRoom({ roomId }) {
         video: true,
         audio: true,
       });
-      console.log("🎥 Local stream ready");
+      console.log("🎥 Local stream ID:", stream.id);
       if (isUnmounted) return;
       localVideoRef.current.srcObject = stream;
       if (peer.signalingState !== "closed") {
