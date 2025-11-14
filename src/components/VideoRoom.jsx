@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import io from "socket.io-client";
+import micOn from "../assets/mic-on.png";
+import micOff from "../assets/mic-off.png";
+import speakerOn from "../assets/volume-on.png";
+import speakerOff from "../assets/volume-off.png";
+import hungUp from "../assets/hang-up.png";
 
 export default function VideoRoom({ roomId, onLeave }) {
   const socketRef = useRef();
@@ -8,6 +13,9 @@ export default function VideoRoom({ roomId, onLeave }) {
   const peerRef = useRef();
   const SERVER_URL = import.meta.env.VITE_SERVER_URL;
   const [remoteUserLeft, setRemoteUserLeft] = useState(false); // 👈 new
+
+  const [isMuted, setIsMuted] = useState(false);
+  const [isSpeakerMuted, setIsSpeakerMuted] = useState(false);
 
   useEffect(() => {
     const socket = io(SERVER_URL);
@@ -71,34 +79,38 @@ export default function VideoRoom({ roomId, onLeave }) {
     // 🧱 2️⃣ Hook into connection-state and socket events
     peer.onconnectionstatechange = () => {
       console.log("🔌 Peer state:", peer.connectionState);
+      console.log(remoteUserLeft);
+
+      if (remoteUserLeft) return console.log("👋 Remote left; ignore.");
       if (["disconnected", "failed", "closed"].includes(peer.connectionState)) {
         handlePeerDisconnect();
       }
     };
 
-    // socket.on("disconnect", () => {
-    //   console.warn("⚠️ Socket disconnected!");
-    //   handlePeerDisconnect();
-    // });
-
-    // 1️⃣ attach ontrack immediately
+    // 1️⃣ Remote video track handling
     peer.ontrack = (event) => {
       const remoteStream = event.streams[0];
       console.log("📡 Remote stream ID:", remoteStream.id);
+      if (!remoteVideoRef.current) {
+        console.warn(
+          "⚠️ Remote video element not ready, skipping track assignment."
+        );
+        return;
+      }
       remoteVideoRef.current.srcObject = remoteStream;
     };
 
-    // 2️⃣ Attach onicecandidate + connection state
+    // 2️⃣ ICE candidates
     peer.onicecandidate = (e) => {
       if (e.candidate)
         socket.emit("ice-candidate", { candidate: e.candidate, roomId });
     };
 
-    // 3️⃣ connect socket, join room
+    // 3️⃣ join room
     socket.on("connect", () => console.log("Connected as:", socket.id));
     socket.emit("join-room", roomId);
 
-    // 4️⃣ Attach signaling listeners (offer/answer/ice)
+    // 4️⃣ signaling listeners (offer/answer/ice)
     socket.on("user-joined", async (newUserId) => {
       if (socket.id !== newUserId) {
         console.log("📢 user-joined:", newUserId);
@@ -137,6 +149,8 @@ export default function VideoRoom({ roomId, onLeave }) {
 
     socket.on("user-left", (userId) => {
       console.warn(`👋 User ${userId} left the room.`);
+      console.log(userId);
+
       setRemoteUserLeft(true); // 👈 this updates UI
       peer.close();
       peerRef.current = null;
@@ -182,14 +196,36 @@ export default function VideoRoom({ roomId, onLeave }) {
     };
   }, [roomId, SERVER_URL, onLeave, remoteUserLeft]);
 
+  // 🎛️ Mic toggle
+  const handleToggleMic = () => {
+    const stream = localVideoRef.current?.srcObject;
+    if (!stream) return;
+    const audioTrack = stream.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = !audioTrack.enabled;
+      setIsMuted(!audioTrack.enabled);
+      console.log(audioTrack.enabled ? "🎙️ Mic unmuted" : "🔇 Mic muted");
+    }
+  };
+
+  // 🎧 Speaker toggle
+  const handleToggleSpeaker = () => {
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.muted = !remoteVideoRef.current.muted;
+      setIsSpeakerMuted(remoteVideoRef.current.muted);
+      console.log(
+        remoteVideoRef.current.muted ? "🔇 Speaker muted" : "🔊 Speaker unmuted"
+      );
+    }
+  };
+
+  //  Leave call
+
   function handleLeaveClick() {
     console.log("👋 Leaving call manually...");
-    try {
-      socketRef.current?.disconnect();
-      peerRef.current?.close();
-    } finally {
-      onLeave?.();
-    }
+    peerRef.current?.close();
+    socketRef.current?.disconnect();
+    onLeave?.();
   }
 
   return (
@@ -207,16 +243,49 @@ export default function VideoRoom({ roomId, onLeave }) {
               textAlign: "center",
             }}
           >
-            <h3>👋 The other user has left the call</h3>
-            <p>Waiting for them to rejoin or leave the room.</p>
+            <h1>🚫</h1>
+            <h3> The other user has left the call </h3>
           </div>
         ) : (
           <video ref={remoteVideoRef} autoPlay playsInline width="400" />
         )}
       </div>
-      <button onClick={handleLeaveClick} style={{ marginTop: "1rem" }}>
-        Leave Call
-      </button>
+      <div
+        style={{
+          marginTop: "1rem",
+          display: "flex",
+          gap: "1rem",
+          justifyContent: "center",
+        }}
+      >
+        <button
+          style={{ background: "transparent", border: "none" }}
+          onClick={handleToggleMic}
+        >
+          {isMuted ? (
+            <img src={micOff} width="30px" height="30px" alt="mic-off" />
+          ) : (
+            <img src={micOn} width="30px" height="30px" alt="mic-on" />
+          )}
+        </button>
+
+        <button
+          style={{ background: "transparent", border: "none" }}
+          onClick={handleToggleSpeaker}
+        >
+          {isSpeakerMuted ? (
+            <img src={speakerOff} width="30px" height="30px" alt="mic-off" />
+          ) : (
+            <img src={speakerOn} width="30px" height="30px" alt="mic-off" />
+          )}
+        </button>
+        <button
+          style={{ background: "transparent", border: "none" }}
+          onClick={handleLeaveClick}
+        >
+          <img src={hungUp} width="42px" height="42px" alt="mic-off" />
+        </button>
+      </div>
     </div>
   );
 }
