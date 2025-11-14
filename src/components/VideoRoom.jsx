@@ -1,12 +1,13 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import io from "socket.io-client";
 
-export default function VideoRoom({ roomId }) {
+export default function VideoRoom({ roomId, onLeave }) {
   const socketRef = useRef();
   const localVideoRef = useRef();
   const remoteVideoRef = useRef();
   const peerRef = useRef();
   const SERVER_URL = import.meta.env.VITE_SERVER_URL;
+  const [remoteUserLeft, setRemoteUserLeft] = useState(false); // 👈 new
 
   useEffect(() => {
     const socket = io(SERVER_URL);
@@ -20,19 +21,27 @@ export default function VideoRoom({ roomId }) {
 
     // 🧱 1️⃣ Define reconnection helpers first
     async function handlePeerDisconnect() {
+      await new Promise((r) => setTimeout(r, 800));
+      if (remoteUserLeft) {
+        console.log("Peer disconnected permanently — not reconnecting.");
+        return;
+      }
       console.warn("⚠️ Peer disconnected! Attempting reconnection...");
       try {
+        if (peerRef.current === null) return;
         peer.close(); // close old peer
       } catch (err) {
-        console.warn("Peer already closed");
-        console.log(err);
+        console.warn("Peer already closed", err);
       }
       peerRef.current = null;
-
       setTimeout(() => reconnectPeer(), 1500); // short delay before re-init
     }
 
     async function reconnectPeer() {
+      if (remoteUserLeft) {
+        console.log("Skipping reconnection — remote user left.");
+        return;
+      }
       console.log("🔁 Reconnecting peer...");
 
       const newPeer = new RTCPeerConnection({
@@ -67,10 +76,10 @@ export default function VideoRoom({ roomId }) {
       }
     };
 
-    socket.on("disconnect", () => {
-      console.warn("⚠️ Socket disconnected!");
-      handlePeerDisconnect();
-    });
+    // socket.on("disconnect", () => {
+    //   console.warn("⚠️ Socket disconnected!");
+    //   handlePeerDisconnect();
+    // });
 
     // 1️⃣ attach ontrack immediately
     peer.ontrack = (event) => {
@@ -126,6 +135,13 @@ export default function VideoRoom({ roomId }) {
       peer.addIceCandidate(new RTCIceCandidate(candidate));
     });
 
+    socket.on("user-left", (userId) => {
+      console.warn(`👋 User ${userId} left the room.`);
+      setRemoteUserLeft(true); // 👈 this updates UI
+      peer.close();
+      peerRef.current = null;
+    });
+
     // 5️⃣ Create a promise helper for waiting for local stream
     let localStreamPromiseResolve;
     const localStreamReady = new Promise(
@@ -164,15 +180,43 @@ export default function VideoRoom({ roomId }) {
       socket.disconnect();
       peer.close();
     };
-  }, [roomId, SERVER_URL]);
+  }, [roomId, SERVER_URL, onLeave, remoteUserLeft]);
+
+  function handleLeaveClick() {
+    console.log("👋 Leaving call manually...");
+    try {
+      socketRef.current?.disconnect();
+      peerRef.current?.close();
+    } finally {
+      onLeave?.();
+    }
+  }
 
   return (
     <div>
       <h2>Room: {roomId}</h2>
       <div style={{ display: "flex", gap: "1rem", justifyContent: "center" }}>
         <video ref={localVideoRef} autoPlay muted playsInline width="300" />
-        <video ref={remoteVideoRef} autoPlay playsInline width="400" />
+        {remoteUserLeft ? (
+          <div
+            style={{
+              background: "#1a1a1a",
+              color: "white",
+              padding: "2rem",
+              borderRadius: "1rem",
+              textAlign: "center",
+            }}
+          >
+            <h3>👋 The other user has left the call</h3>
+            <p>Waiting for them to rejoin or leave the room.</p>
+          </div>
+        ) : (
+          <video ref={remoteVideoRef} autoPlay playsInline width="400" />
+        )}
       </div>
+      <button onClick={handleLeaveClick} style={{ marginTop: "1rem" }}>
+        Leave Call
+      </button>
     </div>
   );
 }
