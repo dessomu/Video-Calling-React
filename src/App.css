@@ -1,0 +1,229 @@
+/* ========== Base Reset & Theme Variables ========== */
+:root {
+  --bg-color: #000000;
+  --surface-color: #1c1c1e;
+  --surface-muted: rgba(44, 44, 46, 0.8);
+  --button-bg: rgba(58, 58, 60, 0.9);
+  --button-hover: rgba(72, 72, 74, 0.9);
+  --text-color: #ffffff;
+  --text-muted: rgba(255, 255, 255, 0.8);
+  --accent-blue: #007aff;
+  --accent-blue-dark: #0051d5;
+  --accent-red: #ff4b4b;
+  --radius-md: 12px;
+  --radius-lg: 24px;
+  --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+    Cantarell, sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* ========== Container ========== */
+.join-room {
+  min-height: 100vh;
+  background: var(--bg-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  font-family: var(--font);
+  position: relative;
+  overflow: hidden;
+  color: var(--text-color);
+}
+
+.join-room::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 800px;
+  height: 800px;
+  background: radial-gradient(
+    circle,
+    rgba(0, 122, 255, 0.12) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ========== Card ========== */
+.join-card {
+  background: var(--surface-muted);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-lg);
+  padding: 3rem 2.5rem;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5),
+    0 0 1px rgba(255, 255, 255, 0.1) inset;
+  position: relative;
+  z-index: 1;
+  animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: var(--transition);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========== Title ========== */
+.join-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 2.5rem;
+  color: var(--text-color);
+  letter-spacing: -0.5px;
+}
+
+/* ========== Input ========== */
+.room-input {
+  width: 100%;
+  padding: 1rem 1.25rem;
+  font-size: 1.0625rem;
+  color: var(--text-color);
+  background: var(--surface-color);
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-md);
+  outline: none;
+  font-family: inherit;
+  margin-bottom: 1.5rem;
+  transition: var(--transition);
+}
+
+.room-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.room-input:focus {
+  background: rgba(60, 60, 67, 0.7);
+  border-color: rgba(0, 122, 255, 0.8);
+  box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.15);
+}
+
+/* ========== Button ========== */
+.join-btn {
+  width: 100%;
+  padding: 1rem;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--text-color);
+  /* background: linear-gradient(
+    180deg,
+    var(--accent-blue) 0%,
+    var(--accent-blue-dark) 100%
+  ); */
+  background-color: rgb(169, 169, 169);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition);
+  position: relative;
+  overflow: hidden;
+  font-family: inherit;
+}
+
+.join-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.2) 0%,
+    transparent 100%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.join-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0, 122, 255, 0.4);
+}
+
+.join-btn:hover::before {
+  opacity: 1;
+}
+
+.join-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+}
+
+.join-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ========== Responsive: Tablets ========== */
+
+@media (max-width: 1024px) {
+  .join-room {
+    padding: 0 1.25rem;
+  }
+}
+@media (max-width: 768px) {
+  .join-room {
+    padding: 0 1.25rem;
+  }
+
+  .join-card {
+    padding: 2rem 1.5rem;
+    border-radius: 20px;
+  }
+
+  .join-title {
+    font-size: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .room-input,
+  .join-btn {
+    font-size: 1rem;
+    padding: 0.875rem 1rem;
+  }
+}
+
+/* ========== Responsive: Mobiles ========== */
+@media (max-width: 480px) {
+  .join-room {
+    padding: 0 !important;
+  }
+  .join-card {
+    padding: 1.75rem 1.25rem;
+  }
+
+  .join-title {
+    font-size: 1.375rem;
+  }
+}
+
+/* ========== Accessibility ========== */
+@media (prefers-reduced-motion: reduce) {
+  .join-card {
+    animation: none;
+  }
+
+  .join-btn,
+  .room-input {
+    transition: none;
+  }
+}

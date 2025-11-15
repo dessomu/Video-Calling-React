@@ -5,15 +5,15 @@ import micOff from "../assets/mic-off.png";
 import speakerOn from "../assets/volume-on.png";
 import speakerOff from "../assets/volume-off.png";
 import hungUp from "../assets/hang-up.png";
+import "./VideoRoom.css";
+const SERVER_URL = import.meta.env.VITE_SERVER_URL;
 
 export default function VideoRoom({ roomId, onLeave }) {
   const socketRef = useRef();
   const localVideoRef = useRef();
   const remoteVideoRef = useRef();
   const peerRef = useRef();
-  const SERVER_URL = import.meta.env.VITE_SERVER_URL;
   const [remoteUserLeft, setRemoteUserLeft] = useState(false); // 👈 new
-
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerMuted, setIsSpeakerMuted] = useState(false);
 
@@ -50,6 +50,11 @@ export default function VideoRoom({ roomId, onLeave }) {
         console.log("Skipping reconnection — remote user left.");
         return;
       }
+      if (peerRef.current && peerRef.current.connectionState !== "closed") {
+        console.log("Peer already active — skipping reconnect.");
+        return;
+      }
+
       console.log("🔁 Reconnecting peer...");
 
       const newPeer = new RTCPeerConnection({
@@ -112,12 +117,34 @@ export default function VideoRoom({ roomId, onLeave }) {
 
     // 4️⃣ signaling listeners (offer/answer/ice)
     socket.on("user-joined", async (newUserId) => {
+      console.log("📢 user-joined:", newUserId);
+      setRemoteUserLeft(false); // ✅ Always reset UI
+
+      // If peer is closed, rebuild it and reconnect
+      if (!peerRef.current || peerRef.current.connectionState === "closed") {
+        console.log("⚙️ Peer is closed — reconnecting...");
+        await reconnectPeer();
+        return;
+      }
+
       if (socket.id !== newUserId) {
-        console.log("📢 user-joined:", newUserId);
         // Wait until local stream ready
         await waitForLocalStream();
         const offer = await peer.createOffer();
         await peer.setLocalDescription(offer);
+        socket.emit("offer", { offer, roomId });
+      }
+    });
+
+    // When this user joins, server tells them who’s already there
+    socket.on("existing-users", async (users) => {
+      console.log("👥 Existing users in room:", users);
+      if (users.length > 0) {
+        setRemoteUserLeft(false); // ✅ Reset in case you had stale UI
+        // Create offer for the first user in the list (1-on-1 scenario)
+        await waitForLocalStream();
+        const offer = await peerRef.current.createOffer();
+        await peerRef.current.setLocalDescription(offer);
         socket.emit("offer", { offer, roomId });
       }
     });
@@ -194,7 +221,7 @@ export default function VideoRoom({ roomId, onLeave }) {
       socket.disconnect();
       peer.close();
     };
-  }, [roomId, SERVER_URL, onLeave, remoteUserLeft]);
+  }, [roomId, onLeave, remoteUserLeft]);
 
   // 🎛️ Mic toggle
   const handleToggleMic = () => {
@@ -229,61 +256,53 @@ export default function VideoRoom({ roomId, onLeave }) {
   }
 
   return (
-    <div>
-      <h2>Room: {roomId}</h2>
-      <div style={{ display: "flex", gap: "1rem", justifyContent: "center" }}>
-        <video ref={localVideoRef} autoPlay muted playsInline width="300" />
+    <div className="video-room">
+      <h2 className="room-title">Room: {roomId}</h2>
+
+      <div className="video-container">
+        <video
+          ref={localVideoRef}
+          autoPlay
+          muted
+          playsInline
+          className="video-element own"
+        />
         {remoteUserLeft ? (
-          <div
-            style={{
-              background: "#1a1a1a",
-              color: "white",
-              padding: "2rem",
-              borderRadius: "1rem",
-              textAlign: "center",
-            }}
-          >
+          <div className="user-left">
             <h1>🚫</h1>
-            <h3> The other user has left the call </h3>
+            <h3>The other user has left the call</h3>
           </div>
         ) : (
-          <video ref={remoteVideoRef} autoPlay playsInline width="400" />
+          <video
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            className="video-element remote"
+          />
         )}
       </div>
-      <div
-        style={{
-          marginTop: "1rem",
-          display: "flex",
-          gap: "1rem",
-          justifyContent: "center",
-        }}
-      >
-        <button
-          style={{ background: "transparent", border: "none" }}
-          onClick={handleToggleMic}
-        >
-          {isMuted ? (
-            <img src={micOff} width="30px" height="30px" alt="mic-off" />
-          ) : (
-            <img src={micOn} width="30px" height="30px" alt="mic-on" />
-          )}
+
+      <div className="controls">
+        <button className="icon-btn" onClick={handleToggleMic}>
+          <img
+            src={isMuted ? micOff : micOn}
+            width="28"
+            height="28"
+            alt="mic"
+          />
         </button>
 
-        <button
-          style={{ background: "transparent", border: "none" }}
-          onClick={handleToggleSpeaker}
-        >
-          {isSpeakerMuted ? (
-            <img src={speakerOff} width="30px" height="30px" alt="mic-off" />
-          ) : (
-            <img src={speakerOn} width="30px" height="30px" alt="mic-off" />
-          )}
+        <button className="icon-btn" onClick={handleToggleSpeaker}>
+          <img
+            src={isSpeakerMuted ? speakerOff : speakerOn}
+            width="28"
+            height="28"
+            alt="speaker"
+          />
         </button>
-        <button
-          style={{ background: "transparent", border: "none" }}
-          onClick={handleLeaveClick}
-        >
-          <img src={hungUp} width="42px" height="42px" alt="mic-off" />
+
+        <button className="icon-btn leave-btn" onClick={handleLeaveClick}>
+          <img src={hungUp} width="36" height="36" alt="leave" />
         </button>
       </div>
     </div>

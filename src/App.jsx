@@ -1,5 +1,6 @@
 import { useState } from "react";
 import VideoRoom from "./components/VideoRoom";
+import "./App.css";
 
 export default function App() {
   const [roomId, setRoomId] = useState(
@@ -22,17 +23,20 @@ export default function App() {
   }
 
   return (
-    <div style={{ textAlign: "center", padding: "2rem" }}>
+    <div className="join-room">
       {!joined ? (
-        <>
-          <h2>🎥 Join a Room</h2>
+        <div className="join-card">
+          <h2 className="join-title">🎥 Join a Room</h2>
           <input
             value={roomId}
             onChange={(e) => setRoomId(e.target.value)}
             placeholder="Enter Room ID"
+            className="room-input"
           />
-          <button onClick={handleJoin}>Join</button>
-        </>
+          <button className="join-btn" onClick={handleJoin}>
+            Join
+          </button>
+        </div>
       ) : (
         <VideoRoom roomId={roomId} onLeave={handleLeave} />
       )}
